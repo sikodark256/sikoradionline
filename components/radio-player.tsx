@@ -23,7 +23,7 @@ type HistoryTrack = {
 }
 
 const HISTORY_KEY = "radio-recent-tracks"
-const MAX_HISTORY = 20
+const MAX_HISTORY = 10 // ✅ SOLO 10 CANCIONES — NO LLENA LA PANTALLA
 
 function saveToHistory(track: HistoryTrack) {
   if (typeof window === "undefined") return
@@ -78,11 +78,16 @@ export function RadioPlayer() {
     return () => window.removeEventListener("beforeinstallprompt", handler)
   }, [])
 
+  // ✅ SERVICE WORKER QUE SE ACTUALIZA SOLO — SIN ESPERAR
   useEffect(() => {
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
         navigator.serviceWorker
           .register("/sw.js")
+          .then((reg) => {
+            reg.updateViaCache = "none"
+            setInterval(() => reg.update(), 300000) // Revisa cada 5 minutos
+          })
           .catch(() => {})
       })
     }
@@ -170,7 +175,7 @@ export function RadioPlayer() {
     else startPlayback()
   }
 
-  // ✅ NOTIFICACIÓN PERSONALIZADA - DICE SIKODARK EN LUGAR DE CHROME
+  // ✅ NOTIFICACIÓN PERSONALIZADA — DICE SIKODARK
   useEffect(() => {
     if (typeof navigator === "undefined" || !("mediaSession" in navigator)) return
     navigator.mediaSession.metadata = new MediaMetadata({
