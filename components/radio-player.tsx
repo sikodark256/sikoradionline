@@ -1,5 +1,4 @@
 "use client"
-
 import { useEffect, useRef, useState } from "react"
 import { Play, Pause, Volume2, VolumeX, Loader2, Radio, Download } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -29,27 +28,18 @@ const MAX_HISTORY = 20
 function saveToHistory(track: HistoryTrack) {
   if (typeof window === "undefined") return
   if (!track.title || track.title === "Conectando…" || track.title === "En vivo") return
-
   try {
     const raw = localStorage.getItem(HISTORY_KEY)
     const history: HistoryTrack[] = raw ? JSON.parse(raw) : []
-
-    // Evitar duplicado con la última canción
     if (history.length > 0) {
       const last = history[0]
       if (last.title === track.title && last.artist === track.artist) return
     }
-
-    // Agregar al inicio y limitar
     history.unshift(track)
     const trimmed = history.slice(0, MAX_HISTORY)
     localStorage.setItem(HISTORY_KEY, JSON.stringify(trimmed))
-
-    // Emitir evento para que otros componentes se actualicen
     window.dispatchEvent(new CustomEvent("radio-history-updated"))
-  } catch {
-    /* ignore storage errors */
-  }
+  } catch {}
 }
 
 function parseStreamTitle(raw: string): NowPlaying {
@@ -78,7 +68,6 @@ export function RadioPlayer() {
   const [cover, setCover] = useState<string | null>(null)
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null)
 
-  // Capture the browser's install prompt so we can trigger it from a button.
   useEffect(() => {
     const handler = (e: Event) => {
       e.preventDefault()
@@ -89,15 +78,12 @@ export function RadioPlayer() {
     return () => window.removeEventListener("beforeinstallprompt", handler)
   }, [])
 
-  // Registrar Service Worker para funcionalidad PWA completa
   useEffect(() => {
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
         navigator.serviceWorker
           .register("/sw.js")
-          .catch(() => {
-            /* Silenciar errores de SW en desarrollo */
-          })
+          .catch(() => {})
       })
     }
   }, [])
@@ -109,50 +95,35 @@ export function RadioPlayer() {
     setInstallPrompt(null)
   }
 
-  // Subscribe to now-playing metadata via our SSE proxy.
   useEffect(() => {
     const source = new EventSource("/api/metadata")
-
     source.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data)
         if (typeof data.streamTitle === "string") {
           setNowPlaying(parseStreamTitle(data.streamTitle))
         }
-      } catch {
-        // ignore keep-alive / non-JSON payloads
-      }
+      } catch {}
     }
-
-    source.onerror = () => {
-      // EventSource auto-reconnects; nothing to do here.
-    }
-
+    source.onerror = () => {}
     return () => source.close()
   }, [])
 
-  // Look up album artwork from Deezer whenever the track changes.
   useEffect(() => {
     const { title, artist } = nowPlaying
     if (!title || title === "Conectando…" || title === "En vivo") {
       setCover(null)
       return
     }
-
     const controller = new AbortController()
     const params = new URLSearchParams({ title, artist: artist ?? "" })
-
     fetch(`/api/artwork?${params.toString()}`, { signal: controller.signal })
       .then((r) => r.json())
       .then((d: { cover: string | null }) => setCover(d.cover))
-      .catch(() => {
-        /* ignore aborts / network errors */
-      })
-
+      .catch(() => {})
     return () => controller.abort()
   }, [nowPlaying])
 
-  // Guardar canción en el historial cuando tengamos título y carátula
   useEffect(() => {
     if (!nowPlaying.title || nowPlaying.title === "Conectando…" || nowPlaying.title === "En vivo") return
     saveToHistory({
@@ -188,7 +159,6 @@ export function RadioPlayer() {
     const audio = audioRef.current
     if (!audio) return
     audio.pause()
-    // Reset src so we always fetch fresh live audio on the next play.
     audio.removeAttribute("src")
     audio.load()
     setIsPlaying(false)
@@ -200,28 +170,24 @@ export function RadioPlayer() {
     else startPlayback()
   }
 
-  // Publish track info to the OS lock screen / notification (Media Session API).
+  // ✅ NOTIFICACIÓN PERSONALIZADA - DICE SIKODARK EN LUGAR DE CHROME
   useEffect(() => {
     if (typeof navigator === "undefined" || !("mediaSession" in navigator)) return
-
     navigator.mediaSession.metadata = new MediaMetadata({
-      title: nowPlaying.title,
-      artist: nowPlaying.artist ?? "Radio Online",
-      album: "Zeno Stream",
-      artwork: cover
-        ? [{ src: cover, sizes: "1000x1000", type: "image/jpeg" }]
-        : [{ src: "/logo-radio.png", sizes: "1003x1004", type: "image/png" }],
+      title: nowPlaying.title || "En vivo",
+      artist: nowPlaying.artist || "SIKODARK Radio Online",
+      album: "sikodarkfm",
+      artwork: [
+        { src: cover || "/logo-radio.png", sizes: "512x512", type: "image/png" }
+      ]
     })
   }, [nowPlaying, cover])
 
-  // Register OS-level playback controls (lock screen, headset buttons, etc.).
   useEffect(() => {
     if (typeof navigator === "undefined" || !("mediaSession" in navigator)) return
-
     navigator.mediaSession.setActionHandler("play", () => startPlayback())
     navigator.mediaSession.setActionHandler("pause", () => stopPlayback())
     navigator.mediaSession.setActionHandler("stop", () => stopPlayback())
-
     return () => {
       navigator.mediaSession.setActionHandler("play", null)
       navigator.mediaSession.setActionHandler("pause", null)
@@ -229,7 +195,6 @@ export function RadioPlayer() {
     }
   }, [])
 
-  // Keep the OS play/pause indicator in sync with our state.
   useEffect(() => {
     if (typeof navigator === "undefined" || !("mediaSession" in navigator)) return
     navigator.mediaSession.playbackState = isPlaying ? "playing" : "paused"
@@ -255,7 +220,6 @@ export function RadioPlayer() {
         }}
       />
 
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="grid size-9 place-items-center rounded-full bg-primary text-primary-foreground">
@@ -268,7 +232,6 @@ export function RadioPlayer() {
             <p className="text-sm font-semibold">SIKODARK</p>
           </div>
         </div>
-
         <span
           className={cn(
             "flex items-center gap-2 rounded-full px-3 py-1 font-mono text-xs uppercase tracking-wider transition-colors",
@@ -287,17 +250,13 @@ export function RadioPlayer() {
         </span>
       </div>
 
-      {/* Artwork / visualizer */}
       <div className="relative mt-6 aspect-square overflow-hidden rounded-2xl bg-secondary">
-        {/* Always show artwork: the track cover if found, otherwise the radio logo. */}
         <img
           src={cover || "/logo-radio.png"}
           alt={cover ? `Carátula de ${nowPlaying.title}` : "Logo de la radio"}
           crossOrigin="anonymous"
           className="absolute inset-0 size-full object-cover transition-opacity duration-500"
         />
-
-        {/* Animated bars overlay; sits over the artwork with a gradient scrim. */}
         <div className="absolute inset-x-0 bottom-0 flex h-1/3 items-end justify-center gap-1.5 bg-gradient-to-t from-black/70 to-transparent p-8">
           {Array.from({ length: 9 }).map((_, i) => (
             <span
@@ -320,7 +279,6 @@ export function RadioPlayer() {
         </div>
       </div>
 
-      {/* Now playing */}
       <div className="mt-6 min-h-16 text-center">
         <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
           Sonando ahora
@@ -335,7 +293,6 @@ export function RadioPlayer() {
         )}
       </div>
 
-      {/* Controls */}
       <div className="mt-6 flex items-center gap-4">
         <button
           type="button"
@@ -351,7 +308,6 @@ export function RadioPlayer() {
             <Play className="size-7 translate-x-0.5 fill-current" aria-hidden="true" />
           )}
         </button>
-
         <div className="flex flex-1 items-center gap-3">
           <button
             type="button"
@@ -381,7 +337,6 @@ export function RadioPlayer() {
         </div>
       </div>
 
-      {/* Install as app (shown only when the browser allows it) */}
       {installPrompt && (
         <button
           type="button"
