@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next"
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Mi Radio Online",
-    short_name: "Mi Radio",
+    name: "SIKODARK RADIO",
+    short_name: "SIKODARKFM",
     description: "Escuchá radio en directo con metadata y carátula de la canción en tiempo real.",
     start_url: "/",
     display: "standalone",
