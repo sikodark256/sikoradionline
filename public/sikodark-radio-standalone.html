@@ -1,0 +1,866 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#202024">
+<title>SIKODARK Radio — PWA</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/remixicon@4/fonts/remixicon.css">
+<style>
+  :root {
+    --bg: #202024;
+    --card: #2a2a2f;
+    --text: #e8e5df;
+    --muted: #9a978f;
+    --accent: #c47046;
+    --accent-soft: rgba(196, 112, 70, .14);
+    --accent2: #7ba8b8;
+    --accent2-soft: rgba(123, 168, 184, .14);
+    --border: rgba(232, 229, 223, .12);
+    --radius: 16px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Sora', system-ui, -apple-system, sans-serif;
+    min-height: 100vh;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    background:
+      radial-gradient(ellipse at 20% 0%, rgba(196, 112, 70, .08), transparent 50%),
+      radial-gradient(ellipse at 80% 100%, rgba(123, 168, 184, .06), transparent 50%),
+      var(--bg);
+    padding: 24px 16px;
+  }
+
+  .container {
+    max-width: 1800px;
+    margin: 0 auto;
+  }
+
+  /* ========== LAYOUT PRINCIPAL ========== */
+  .main-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 32px;
+  }
+
+  @media (min-width: 1024px) {
+    .main-grid {
+      grid-template-columns: minmax(0, 440px) 1fr;
+      gap: 40px;
+      align-items: start;
+    }
+    .player-col {
+      position: sticky;
+      top: 24px;
+    }
+  }
+
+  @media (min-width: 1600px) {
+    .main-grid {
+      grid-template-columns: minmax(0, 500px) 1fr;
+      gap: 48px;
+    }
+  }
+
+  /* ========== TARJETAS ========== */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 28px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, .25);
+  }
+
+  @media (min-width: 1920px) {
+    .card { padding: 36px; border-radius: 20px; }
+  }
+
+  /* ========== REPRODUCTOR ========== */
+  .player-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .brand-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--accent);
+    display: grid;
+    place-items: center;
+    color: var(--bg);
+    font-size: 22px;
+  }
+
+  .brand-text .label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--muted);
+    font-weight: 600;
+  }
+
+  .brand-text .name {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  .status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+
+  .status-pill .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+
+  .status-pill .dot.live { animation: pulse 1.5s ease-in-out infinite; }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: .5; transform: scale(.85); }
+  }
+
+  .status-pill.stopped {
+    background: rgba(154, 151, 143, .15);
+    color: var(--muted);
+  }
+
+  .status-pill.stopped .dot { background: var(--muted); animation: none; }
+
+  /* Carátula */
+  .artwork {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    border-radius: 14px;
+    overflow: hidden;
+    background: linear-gradient(135deg, #3a3a40, #25252a);
+    margin-bottom: 24px;
+  }
+
+  .artwork-placeholder {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    font-size: 80px;
+    color: rgba(232, 229, 223, .1);
+  }
+
+  .artwork-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to top, rgba(0,0,0,.6) 0%, transparent 50%);
+  }
+
+  .visualizer {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 35%;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 4px;
+    padding: 20px;
+  }
+
+  .bar {
+    width: 6px;
+    background: var(--accent);
+    border-radius: 3px 3px 0 0;
+    transition: height .1s ease;
+  }
+
+  .playing .bar { animation: bounce .9s ease-in-out infinite; }
+  .playing .bar:nth-child(1) { animation-delay: 0s; height: 40%; }
+  .playing .bar:nth-child(2) { animation-delay: .08s; height: 70%; }
+  .playing .bar:nth-child(3) { animation-delay: .16s; height: 50%; }
+  .playing .bar:nth-child(4) { animation-delay: .24s; height: 85%; }
+  .playing .bar:nth-child(5) { animation-delay: .32s; height: 60%; }
+  .playing .bar:nth-child(6) { animation-delay: .40s; height: 90%; }
+  .playing .bar:nth-child(7) { animation-delay: .48s; height: 45%; }
+  .playing .bar:nth-child(8) { animation-delay: .56s; height: 75%; }
+  .playing .bar:nth-child(9) { animation-delay: .64s; height: 55%; }
+
+  .stopped .bar { height: 15% !important; opacity: .4; animation: none; }
+
+  @keyframes bounce {
+    0%, 100% { transform: scaleY(.6); }
+    50% { transform: scaleY(1); }
+  }
+
+  /* Now playing info */
+  .now-playing {
+    text-align: center;
+    margin-bottom: 24px;
+    min-height: 64px;
+  }
+
+  .now-playing .np-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--muted);
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+
+  .now-playing .np-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1.3;
+    margin-bottom: 4px;
+  }
+
+  .now-playing .np-artist {
+    font-size: 14px;
+    color: var(--muted);
+  }
+
+  /* Controles */
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .btn-play {
+    width: 68px;
+    height: 68px;
+    border-radius: 50%;
+    border: none;
+    background: var(--accent);
+    color: var(--bg);
+    font-size: 28px;
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    transition: transform .15s ease, box-shadow .15s ease;
+    flex-shrink: 0;
+    box-shadow: 0 4px 20px rgba(196, 112, 70, .35);
+  }
+
+  .btn-play:hover { transform: scale(1.05); }
+  .btn-play:active { transform: scale(.95); }
+  .btn-play:focus-visible {
+    outline: 3px solid var(--accent);
+    outline-offset: 3px;
+  }
+
+  .volume-wrap {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .btn-volume {
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 22px;
+    cursor: pointer;
+    padding: 4px;
+    display: grid;
+    place-items: center;
+    transition: color .15s;
+  }
+
+  .btn-volume:hover { color: var(--text); }
+  .btn-volume:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+
+  input[type="range"] {
+    flex: 1;
+    height: 6px;
+    border-radius: 3px;
+    background: rgba(232, 229, 223, .1);
+    outline: none;
+    -webkit-appearance: none;
+    cursor: pointer;
+  }
+
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(196, 112, 70, .4);
+  }
+
+  input[type="range"]::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    border: none;
+  }
+
+  /* ========== RECIENTES ========== */
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .section-title {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .section-title .icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--accent-soft);
+    color: var(--accent);
+    display: grid;
+    place-items: center;
+    font-size: 22px;
+  }
+
+  .section-title h2 {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  .section-title p {
+    font-size: 12px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    font-weight: 600;
+    margin-top: 2px;
+  }
+
+  .count-badge {
+    padding: 6px 14px;
+    border-radius: 999px;
+    background: rgba(232, 229, 223, .06);
+    font-size: 12px;
+    color: var(--muted);
+    font-weight: 600;
+  }
+
+  .tracks-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+  }
+
+  @media (min-width: 520px) {
+    .tracks-grid { grid-template-columns: repeat(3, 1fr); }
+  }
+
+  @media (min-width: 768px) {
+    .tracks-grid { grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  }
+
+  @media (min-width: 1024px) {
+    .tracks-grid { grid-template-columns: repeat(4, 1fr); }
+  }
+
+  @media (min-width: 1400px) {
+    .tracks-grid { grid-template-columns: repeat(5, 1fr); gap: 18px; }
+  }
+
+  @media (min-width: 1920px) {
+    .tracks-grid { grid-template-columns: repeat(6, 1fr); gap: 20px; }
+  }
+
+  .track-card {
+    background: rgba(232, 229, 223, .04);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform .2s ease, box-shadow .2s ease, background .2s ease;
+  }
+
+  .track-card:hover {
+    transform: translateY(-4px);
+    background: rgba(232, 229, 223, .07);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .25);
+  }
+
+  .track-card:focus-visible {
+    outline: 3px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .track-cover {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    background: linear-gradient(135deg, var(--accent-soft), var(--accent2-soft));
+    overflow: hidden;
+  }
+
+  .track-cover .cover-icon {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    font-size: 40px;
+    color: rgba(232, 229, 223, .2);
+  }
+
+  .track-cover .track-num {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, .55);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    display: grid;
+    place-items: center;
+    backdrop-filter: blur(4px);
+  }
+
+  .track-info {
+    padding: 12px;
+  }
+
+  .track-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 3px;
+  }
+
+  .track-artist {
+    font-size: 11px;
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .track-time {
+    font-size: 10px;
+    color: var(--muted);
+    opacity: .7;
+    margin-top: 6px;
+    font-family: 'Sora', monospace;
+  }
+
+  /* Colores únicos por canción */
+  .track-card:nth-child(1) .track-cover { background: linear-gradient(135deg, rgba(196,112,70,.25), rgba(123,168,184,.15)); }
+  .track-card:nth-child(2) .track-cover { background: linear-gradient(135deg, rgba(123,168,184,.25), rgba(196,112,70,.15)); }
+  .track-card:nth-child(3) .track-cover { background: linear-gradient(135deg, rgba(196,112,70,.18), rgba(196,112,70,.08)); }
+  .track-card:nth-child(4) .track-cover { background: linear-gradient(135deg, rgba(123,168,184,.2), rgba(123,168,184,.08)); }
+  .track-card:nth-child(5) .track-cover { background: linear-gradient(135deg, rgba(180,140,100,.22), rgba(196,112,70,.1)); }
+  .track-card:nth-child(6) .track-cover { background: linear-gradient(135deg, rgba(100,140,160,.22), rgba(123,168,184,.1)); }
+  .track-card:nth-child(7) .track-cover { background: linear-gradient(135deg, rgba(196,112,70,.2), rgba(150,120,90,.12)); }
+  .track-card:nth-child(8) .track-cover { background: linear-gradient(135deg, rgba(123,168,184,.18), rgba(90,130,150,.12)); }
+  .track-card:nth-child(9) .track-cover { background: linear-gradient(135deg, rgba(200,130,90,.24), rgba(196,112,70,.1)); }
+  .track-card:nth-child(10) .track-cover { background: linear-gradient(135deg, rgba(110,155,175,.24), rgba(123,168,184,.1)); }
+  .track-card:nth-child(11) .track-cover { background: linear-gradient(135deg, rgba(196,112,70,.16), rgba(180,150,120,.12)); }
+  .track-card:nth-child(12) .track-cover { background: linear-gradient(135deg, rgba(123,168,184,.16), rgba(140,170,185,.12)); }
+
+  /* ========== FOOTER ========== */
+  footer {
+    text-align: center;
+    margin-top: 32px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  footer span { color: var(--accent); }
+
+  /* ========== OPTIMIZACIONES TV ========== */
+  @media (min-width: 1920px) {
+    html { font-size: 17px; }
+    body { padding: 40px 48px; }
+    .btn-play { width: 80px; height: 80px; font-size: 32px; }
+    .now-playing .np-title { font-size: 24px; }
+    .section-title h2 { font-size: 26px; }
+    .track-name { font-size: 14px; }
+    .track-artist { font-size: 12px; }
+  }
+
+  @media (min-width: 2560px) {
+    html { font-size: 20px; }
+    body { padding: 56px 64px; }
+    .card { padding: 44px; border-radius: 24px; }
+  }
+
+  @media (min-width: 3840px) {
+    html { font-size: 26px; }
+  }
+
+  /* Enfoque visible para control remoto */
+  @media (pointer: coarse) and (min-width: 1024px) {
+    button:focus-visible, input:focus-visible, .track-card:focus-visible {
+      outline: 4px solid var(--accent) !important;
+      outline-offset: 4px !important;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: .01ms !important;
+      transition-duration: .01ms !important;
+    }
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="main-grid">
+
+    <!-- COLUMNA IZQUIERDA: REPRODUCTOR -->
+    <div class="player-col">
+      <div class="card" id="playerCard">
+        <div class="player-header">
+          <div class="brand">
+            <div class="brand-icon"><i class="ri-radio-fill"></i></div>
+            <div class="brand-text">
+              <div class="label">Radio Online</div>
+              <div class="name">SIKODARK</div>
+            </div>
+          </div>
+          <span class="status-pill stopped" id="statusPill">
+            <span class="dot" id="statusDot"></span>
+            <span id="statusText">Detenido</span>
+          </span>
+        </div>
+
+        <!-- Carátula / Visualizador -->
+        <div class="artwork stopped" id="artwork">
+          <div class="artwork-placeholder"><i class="ri-music-2-fill"></i></div>
+          <div class="artwork-overlay"></div>
+          <div class="visualizer" id="visualizer">
+            <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+            <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+            <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+          </div>
+        </div>
+
+        <!-- Now Playing -->
+        <div class="now-playing">
+          <div class="np-label">Sonando ahora</div>
+          <div class="np-title" id="npTitle">Listo para reproducir</div>
+          <div class="np-artist" id="npArtist">Haz clic en el botón de reproducción</div>
+        </div>
+
+        <!-- Controles -->
+        <div class="controls">
+          <button class="btn-play" id="btnPlay" aria-label="Reproducir">
+            <i class="ri-play-fill" id="playIcon"></i>
+          </button>
+          <div class="volume-wrap">
+            <button class="btn-volume" id="btnMute" aria-label="Silenciar">
+              <i class="ri-volume-up-line" id="volIcon"></i>
+            </button>
+            <input type="range" id="volumeSlider" min="0" max="1" step="0.01" value="0.8" aria-label="Volumen">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- COLUMNA DERECHA: RECIENTES -->
+    <div>
+      <div class="card">
+        <div class="section-header">
+          <div class="section-title">
+            <div class="icon"><i class="ri-play-list-2-fill"></i></div>
+            <div>
+              <h2>Reproducido recientemente</h2>
+              <p>Los últimos temas que sonaron en la radio</p>
+            </div>
+          </div>
+          <span class="count-badge"><span id="trackCount">12</span> temas</span>
+        </div>
+
+        <div class="tracks-grid" id="tracksGrid">
+          <!-- Se llena con JavaScript -->
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <footer>
+    <span>SIKODARK</span> Radio &mdash; PWA responsiva para celular, PC y TV &mdash; Abre este archivo en cualquier navegador
+  </footer>
+</div>
+
+<audio id="audio" preload="none" crossorigin="anonymous">
+  <source src="https://stream.zeno.fm/xdkqr4btptutv" type="audio/mpeg">
+</audio>
+
+<script>
+(function() {
+  'use strict';
+
+  // ========== DATOS: CANCIONES RECIENTES ==========
+  const recentTracks = [
+    { name: "Blinding Lights", artist: "The Weeknd", time: "Hace 3 min" },
+    { name: "Shape of You", artist: "Ed Sheeran", time: "Hace 8 min" },
+    { name: "Levitating", artist: "Dua Lipa", time: "Hace 12 min" },
+    { name: "Watermelon Sugar", artist: "Harry Styles", time: "Hace 17 min" },
+    { name: "Don't Start Now", artist: "Dua Lipa", time: "Hace 22 min" },
+    { name: "Peaches", artist: "Justin Bieber", time: "Hace 28 min" },
+    { name: "Stay", artist: "The Kid LAROI & Bieber", time: "Hace 34 min" },
+    { name: "Bad Habits", artist: "Ed Sheeran", time: "Hace 40 min" },
+    { name: "Heat Waves", artist: "Glass Animals", time: "Hace 46 min" },
+    { name: "Save Your Tears", artist: "The Weeknd", time: "Hace 52 min" },
+    { name: "Montero", artist: "Lil Nas X", time: "Hace 58 min" },
+    { name: "Kiss Me More", artist: "Doja Cat ft. SZA", time: "Hace 1 h 5 min" }
+  ];
+
+  // ========== RENDERIZAR CANCIONES ==========
+  const grid = document.getElementById('tracksGrid');
+  const countEl = document.getElementById('trackCount');
+  countEl.textContent = recentTracks.length;
+
+  recentTracks.forEach(function(track, idx) {
+    var card = document.createElement('article');
+    card.className = 'track-card';
+    card.tabIndex = 0;
+    card.innerHTML =
+      '<div class="track-cover">' +
+        '<div class="cover-icon"><i class="ri-music-2-fill"></i></div>' +
+        '<div class="track-num">#' + (idx + 1) + '</div>' +
+      '</div>' +
+      '<div class="track-info">' +
+        '<div class="track-name" title="' + track.name + '">' + track.name + '</div>' +
+        '<div class="track-artist" title="' + track.artist + '">' + track.artist + '</div>' +
+        '<div class="track-time">' + track.time + '</div>' +
+      '</div>';
+    grid.appendChild(card);
+  });
+
+  // ========== CONTROL DE AUDIO ==========
+  var audio = document.getElementById('audio');
+  var btnPlay = document.getElementById('btnPlay');
+  var playIcon = document.getElementById('playIcon');
+  var statusPill = document.getElementById('statusPill');
+  var statusDot = document.getElementById('statusDot');
+  var statusText = document.getElementById('statusText');
+  var artwork = document.getElementById('artwork');
+  var npTitle = document.getElementById('npTitle');
+  var npArtist = document.getElementById('npArtist');
+  var btnMute = document.getElementById('btnMute');
+  var volIcon = document.getElementById('volIcon');
+  var volSlider = document.getElementById('volumeSlider');
+
+  var isPlaying = false;
+  var isLoading = false;
+
+  audio.volume = 0.8;
+
+  function setPlayingUI(playing) {
+    isPlaying = playing;
+    if (playing) {
+      playIcon.className = 'ri-pause-fill';
+      btnPlay.setAttribute('aria-label', 'Pausar');
+      statusPill.className = 'status-pill';
+      statusDot.className = 'dot live';
+      statusText.textContent = 'En vivo';
+      artwork.className = 'artwork playing';
+    } else {
+      playIcon.className = 'ri-play-fill';
+      btnPlay.setAttribute('aria-label', 'Reproducir');
+      statusPill.className = 'status-pill stopped';
+      statusDot.className = 'dot';
+      statusText.textContent = 'Detenido';
+      artwork.className = 'artwork stopped';
+    }
+  }
+
+  function startPlayback() {
+    if (isLoading) return;
+    isLoading = true;
+    npTitle.textContent = 'Conectando...';
+    npArtist.textContent = 'Estableciendo conexión con el stream';
+    playIcon.className = 'ri-loader-4-line';
+    btnPlay.style.pointerEvents = 'none';
+
+    audio.src = 'https://stream.zeno.fm/xdkqr4btptutv';
+    audio.load();
+
+    var playPromise = audio.play();
+    if (playPromise !== undefined) {
+      playPromise
+        .then(function() {
+          isLoading = false;
+          btnPlay.style.pointerEvents = '';
+          setPlayingUI(true);
+          npTitle.textContent = 'Transmisión en vivo';
+          npArtist.textContent = 'SIKODARK Radio';
+        })
+        .catch(function(err) {
+          isLoading = false;
+          btnPlay.style.pointerEvents = '';
+          playIcon.className = 'ri-play-fill';
+          npTitle.textContent = 'No se pudo conectar';
+          npArtist.textContent = 'Haz clic nuevamente para intentar';
+          console.warn('Playback error:', err);
+        });
+    }
+  }
+
+  function stopPlayback() {
+    audio.pause();
+    audio.removeAttribute('src');
+    audio.load();
+    setPlayingUI(false);
+    npTitle.textContent = 'Listo para reproducir';
+    npArtist.textContent = 'Haz clic en el botón de reproducción';
+  }
+
+  btnPlay.addEventListener('click', function() {
+    if (isPlaying) stopPlayback();
+    else startPlayback();
+  });
+
+  audio.addEventListener('waiting', function() {
+    if (isPlaying) {
+      playIcon.className = 'ri-loader-4-line';
+      npTitle.textContent = 'Cargando stream...';
+    }
+  });
+
+  audio.addEventListener('playing', function() {
+    if (isPlaying) {
+      playIcon.className = 'ri-pause-fill';
+      npTitle.textContent = 'Transmisión en vivo';
+      npArtist.textContent = 'SIKODARK Radio';
+    }
+  });
+
+  audio.addEventListener('error', function() {
+    isLoading = false;
+    btnPlay.style.pointerEvents = '';
+    setPlayingUI(false);
+    npTitle.textContent = 'Error de conexión';
+    npArtist.textContent = 'Verifica tu conexión a internet';
+  });
+
+  // ========== CONTROL DE VOLUMEN ==========
+  volSlider.addEventListener('input', function() {
+    var val = parseFloat(this.value);
+    audio.volume = val;
+    audio.muted = val === 0;
+    updateVolIcon(val);
+  });
+
+  btnMute.addEventListener('click', function() {
+    audio.muted = !audio.muted;
+    if (audio.muted) {
+      volIcon.className = 'ri-volume-mute-line';
+    } else {
+      updateVolIcon(audio.volume);
+    }
+  });
+
+  function updateVolIcon(val) {
+    if (val === 0 || audio.muted) {
+      volIcon.className = 'ri-volume-mute-line';
+    } else if (val < 0.5) {
+      volIcon.className = 'ri-volume-down-line';
+    } else {
+      volIcon.className = 'ri-volume-up-line';
+    }
+  }
+
+  // ========== SOPORTE DE TECLADO (TV / Control remoto) ==========
+  document.addEventListener('keydown', function(e) {
+    if (e.code === 'Space' || e.code === 'Enter') {
+      if (document.activeElement === btnPlay || document.activeElement === document.body) {
+        e.preventDefault();
+        btnPlay.click();
+      }
+    }
+    if (e.code === 'ArrowUp') {
+      e.preventDefault();
+      var newVol = Math.min(1, parseFloat(volSlider.value) + 0.05);
+      volSlider.value = newVol;
+      volSlider.dispatchEvent(new Event('input'));
+    }
+    if (e.code === 'ArrowDown') {
+      e.preventDefault();
+      var newVolD = Math.max(0, parseFloat(volSlider.value) - 0.05);
+      volSlider.value = newVolD;
+      volSlider.dispatchEvent(new Event('input'));
+    }
+  });
+
+  // ========== REGISTRAR SERVICE WORKER (PWA) ==========
+  if ('serviceWorker' in navigator) {
+    var swCode = [
+      'const CACHE="sikodark-radio-v1";',
+      'const ASSETS=["/"];',
+      'self.addEventListener("install",e=>{e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)));self.skipWaiting();});',
+      'self.addEventListener("activate",e=>{e.waitUntil(caches.keys().then(k=>Promise.all(k.filter(x=>x!==CACHE).map(x=>caches.delete(x)))));self.clients.claim();});',
+      'self.addEventListener("fetch",e=>{e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request).catch(()=>r)));});'
+    ].join('\n');
+    var blob = new Blob([swCode], { type: 'application/javascript' });
+    var swUrl = URL.createObjectURL(blob);
+    navigator.serviceWorker.register(swUrl).catch(function(){});
+  }
+
+})();
+</script>
+
+</body>
+</html>
