@@ -122,6 +122,7 @@ export function RecentTracks() {
                   crossOrigin="anonymous"
                   className="absolute inset-0 size-full object-cover transition-transform duration-300 group-hover:scale-105"
                   loading="lazy"
+                  onError={(e) => { e.currentTarget.src = "/logo-radio.png"; }}
                 />
               ) : (
                 <div className="absolute inset-0 grid place-items-center bg-gradient-to-br from-primary/20 to-secondary">
