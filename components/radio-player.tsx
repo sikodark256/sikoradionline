@@ -31,10 +31,22 @@ function saveToHistory(track: HistoryTrack) {
   try {
     const raw = localStorage.getItem(HISTORY_KEY)
     const history: HistoryTrack[] = raw ? JSON.parse(raw) : []
+    
+    // ✅ Si la canción ya existe y la NUEVA tiene carátula → ACTUALIZAR
     if (history.length > 0) {
       const last = history[0]
-      if (last.title === track.title && last.artist === track.artist) return
+      if (last.title === track.title && last.artist === track.artist) {
+        // Si la nueva tiene carátula y la vieja no → actualizar
+        if (track.cover && track.cover.trim() !== "" && (!last.cover || last.cover.trim() === "")) {
+          history[0].cover = track.cover
+          localStorage.setItem(HISTORY_KEY, JSON.stringify(history))
+          window.dispatchEvent(new CustomEvent("radio-history-updated"))
+        }
+        return // No duplicar
+      }
     }
+    
+    // Agregar canción nueva al inicio
     history.unshift(track)
     const trimmed = history.slice(0, MAX_HISTORY)
     localStorage.setItem(HISTORY_KEY, JSON.stringify(trimmed))
