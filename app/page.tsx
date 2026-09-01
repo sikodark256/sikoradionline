@@ -22,7 +22,7 @@ export default function Page() {
         </div>
 
         <footer className="pt-2 text-center font-mono text-xs text-muted-foreground sm:text-sm">
-          sikodark radio — PWA responsiva para celular, PC y TV
+          sikodark radio
         </footer>
       </div>
     </main>
