@@ -11,22 +11,25 @@ type HistoryTrack = {
   timestamp: number
 }
 
-const HISTORY_KEY = "radio-recent-tracks"
+"use client"
+import { useState, useEffect } from "react"
+import { HistoryTrack } from "./radio-player"
 
-// Canciones de ejemplo para que la sección se vea completa desde el primer momento
+const HISTORY_KEY = "radio-recent-tracks"
+const MAX_HISTORY = 10 // ✅ Solo 10 canciones para no llenar la pantalla
+
+// Canciones de ejemplo con tu logo de respaldo
 const DEMO_TRACKS: HistoryTrack[] = [
-  { title: "Blinding Lights", artist: "The Weeknd", cover: null, timestamp: Date.now() - 1000 * 60 * 5 },
-  { title: "Shape of You", artist: "Ed Sheeran", cover: null, timestamp: Date.now() - 1000 * 60 * 10 },
-  { title: "Levitating", artist: "Dua Lipa", cover: null, timestamp: Date.now() - 1000 * 60 * 15 },
-  { title: "Watermelon Sugar", artist: "Harry Styles", cover: null, timestamp: Date.now() - 1000 * 60 * 20 },
-  { title: "Don't Start Now", artist: "Dua Lipa", cover: null, timestamp: Date.now() - 1000 * 60 * 25 },
-  { title: "Peaches", artist: "Justin Bieber", cover: null, timestamp: Date.now() - 1000 * 60 * 30 },
-  { title: "Stay", artist: "The Kid LAROI & Justin Bieber", cover: null, timestamp: Date.now() - 1000 * 60 * 35 },
-  { title: "Bad Habits", artist: "Ed Sheeran", cover: null, timestamp: Date.now() - 1000 * 60 * 40 },
-  { title: "Heat Waves", artist: "Glass Animals", cover: null, timestamp: Date.now() - 1000 * 60 * 45 },
-  { title: "Save Your Tears", artist: "The Weeknd", cover: null, timestamp: Date.now() - 1000 * 60 * 50 },
-  { title: "Montero", artist: "Lil Nas X", cover: null, timestamp: Date.now() - 1000 * 60 * 55 },
-  { title: "Kiss Me More", artist: "Doja Cat ft. SZA", cover: null, timestamp: Date.now() - 1000 * 60 * 60 },
+  { title: "Blinding Lights", artist: "The Weeknd", cover: "/logo-radio.png", timestamp: Date.now() - 1000 * 60 * 5 },
+  { title: "Shape of You", artist: "Ed Sheeran", cover: "/logo-radio.png", timestamp: Date.now() - 1000 * 60 * 10 },
+  { title: "Levitating", artist: "Dua Lipa", cover: "/logo-radio.png", timestamp: Date.now() - 1000 * 60 * 15 },
+  { title: "Watermelon Sugar", artist: "Harry Styles", cover: "/logo-radio.png", timestamp: Date.now() - 1000 * 60 * 20 },
+  { title: "Don't Start Now", artist: "Dua Lipa", cover: "/logo-radio.png", timestamp: Date.now() - 1000 * 60 * 25 },
+  { title: "Peaches", artist: "Justin Bieber", cover: "/logo-radio.png", timestamp: Date.now() - 1000 * 60 * 30 },
+  { title: "Stay", artist: "The Kid LAROI & Justin Bieber", cover: "/logo-radio.png", timestamp: Date.now() - 1000 * 60 * 35 },
+  { title: "Bad Habits", artist: "Ed Sheeran", cover: "/logo-radio.png", timestamp: Date.now() - 1000 * 60 * 40 },
+  { title: "Heat Waves", artist: "Glass Animals", cover: "/logo-radio.png", timestamp: Date.now() - 1000 * 60 * 45 },
+  { title: "Save Your Tears", artist: "The Weeknd", cover: "/logo-radio.png", timestamp: Date.now() - 1000 * 60 * 50 },
 ]
 
 function formatTimeAgo(ts: number): string {
@@ -51,9 +54,51 @@ export function RecentTracks() {
       if (raw) {
         const parsed: HistoryTrack[] = JSON.parse(raw)
         if (parsed.length > 0) {
-          setTracks(parsed)
+          setTracks(parsed.slice(0, MAX_HISTORY)) // ✅ Limitar a 10
           setHasRealHistory(true)
           return
+        }
+      }
+      // Si no hay historial real → mostrar canciones de ejemplo
+      setTracks(DEMO_TRACKS)
+    } catch {
+      setTracks(DEMO_TRACKS)
+    }
+  }
+
+  useEffect(() => {
+    loadHistory()
+    window.addEventListener("radio-history-updated", loadHistory)
+    return () => window.removeEventListener("radio-history-updated", loadHistory)
+  }, [])
+
+  return (
+    <section className="mt-10">
+      <h2 className="mb-4 text-xl font-bold">🎧 Reproducidos recientemente</h2>
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+        {tracks.map((track, i) => (
+          <div key={i} className="group relative overflow-hidden rounded-xl bg-card transition-shadow hover:shadow-lg">
+            <div className="aspect-square">
+              <img
+                src={track.cover || "/logo-radio.png"}
+                alt={`Carátula de ${track.title}`}
+                crossOrigin="anonymous"
+                className="absolute inset-0 size-full object-cover transition-transform duration-300 group-hover:scale-105"
+                loading="lazy"
+                onError={(e) => { e.currentTarget.src = "/logo-radio.png"; }}
+              />
+            </div>
+            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-2 text-white">
+              <p className="truncate font-semibold text-sm">{track.title}</p>
+              <p className="truncate text-xs opacity-75">{track.artist || "SIKODARK Radio"}</p>
+              <p className="text-xs opacity-50">{formatTimeAgo(track.timestamp)}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
         }
       }
       // Si no hay historial real, usar canciones demo
