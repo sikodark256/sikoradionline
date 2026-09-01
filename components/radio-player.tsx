@@ -257,11 +257,15 @@ export function RadioPlayer() {
 
       <div className="relative mt-6 aspect-square overflow-hidden rounded-2xl bg-secondary">
         <img
-          src={cover || "/logo-radio.png"}
-          alt={cover ? `Carátula de ${nowPlaying.title}` : "Logo de la radio"}
-          crossOrigin="anonymous"
-          className="absolute inset-0 size-full object-cover transition-opacity duration-500"
-        />
+  src={cover && cover.trim() !== "" ? cover : "/logo-radio.png"}
+  alt={cover ? `Carátula de ${nowPlaying.title}` : "Logo de la radio"}
+  crossOrigin="anonymous"
+  className="absolute inset-0 size-full object-cover transition-opacity duration-500"
+  onError={(e) => {
+    e.currentTarget.src = "/logo-radio.png";
+    e.currentTarget.onerror = null;
+  }}
+/>
         <div className="absolute inset-x-0 bottom-0 flex h-1/3 items-end justify-center gap-1.5 bg-gradient-to-t from-black/70 to-transparent p-8">
           {Array.from({ length: 9 }).map((_, i) => (
             <span
