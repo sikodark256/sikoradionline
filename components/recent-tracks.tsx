@@ -116,8 +116,8 @@ export function RecentTracks() {
           >
             <div className="relative aspect-square w-full overflow-hidden bg-secondary">
               {track.cover ? (
-                <img
-                  src={track.cover}
+               <img
+                  src={track.cover || "/logo-radio.png"}
                   alt={`Carátula de ${track.title}`}
                   crossOrigin="anonymous"
                   className="absolute inset-0 size-full object-cover transition-transform duration-300 group-hover:scale-105"
