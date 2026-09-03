@@ -1,5 +1,6 @@
 "use client"
 import { useState, useEffect } from "react"
+// Nota: Deja este import tal cual si tu tipo se exporta desde ahí
 import type { HistoryTrack } from "./radio-player"
 
 const HISTORY_KEY = "radio-recent-tracks"
@@ -33,6 +34,8 @@ function formatTimeAgo(ts: number): string {
 export function RecentTracks() {
   const [tracks, setTracks] = useState<HistoryTrack[]>(DEMO_TRACKS)
   const [hasRealHistory, setHasRealHistory] = useState(false)
+  // Estado para forzar la actualización de los textos de tiempo ("Hace X min") cada minuto
+  const [, setTick] = useState(0)
 
   const loadHistory = () => {
     if (typeof window === "undefined") return
@@ -41,12 +44,35 @@ export function RecentTracks() {
       if (raw) {
         const parsed: HistoryTrack[] = JSON.parse(raw)
         if (parsed.length > 0) {
-          // ✅ ASEGURAR que TODAS tengan carátula o logo
-          const seguras = parsed.map(t => ({
-            ...t,
-            cover: (t.cover && t.cover.trim() !== "") ? t.cover : "/logo-radio.png"
-          }))
-          setTracks(seguras.slice(0, MAX_HISTORY))
+          
+          // 🚀 CORRECCIÓN DE SINCRONIZACIÓN: Filtro inteligente anti-desfase de portadas
+          // Si el player guarda la canción dos veces (una con la portada vieja por retraso de API y luego con la portada real),
+          // este bloque conserva la versión que SÍ contiene la portada real de la canción.
+          const pistasAgrupadas: Record<string, HistoryTrack> = {}
+          
+          // Procesamos de más antiguo a más reciente para que prevalezca lo último guardado
+           [...parsed].reverse().forEach(t => {
+            if (!t.title) return
+            const claveUnica = `${t.title.trim().toLowerCase()}-${(t.artist || "").trim().toLowerCase()}`
+            
+            const existe = pistasAgrupadas[claveUnica]
+            const tienePortadaReal = t.cover && t.cover.trim() !== "" && t.cover !== "/logo-radio.png"
+
+            // Si no existe, o si el nuevo registro trae una portada real válida, lo asignamos/reemplazamos
+            if (!existe || tienePortadaReal) {
+              pistasAgrupadas[claveUnica] = {
+                ...t,
+                cover: tienePortadaReal ? t.cover : (existe?.cover || "/logo-radio.png")
+              }
+            }
+          })
+
+          // Volvemos a ordenar las canciones por fecha (las más recientes primero)
+          const seguras = Object.values(pistasAgrupadas)
+            .sort((a, b) => b.timestamp - a.timestamp)
+            .slice(0, MAX_HISTORY)
+
+          setTracks(seguras)
           setHasRealHistory(true)
           return
         }
@@ -60,7 +86,18 @@ export function RecentTracks() {
   useEffect(() => {
     loadHistory()
     window.addEventListener("radio-history-updated", loadHistory)
-    return () => window.removeEventListener("radio-history-updated", loadHistory)
+    window.addEventListener("storage", loadHistory)
+
+    // ✅ CORRECCIÓN EXTRA: Forzar el refresco visual de "Hace 2 min", "Hace 3 min", etc.
+    const timer = window.setInterval(() => {
+      setTick((t) => t + 1)
+    }, 60000)
+
+    return () => {
+      window.removeEventListener("radio-history-updated", loadHistory)
+      window.removeEventListener("storage", loadHistory)
+      window.clearInterval(timer)
+    }
   }, [])
 
   return (
@@ -79,11 +116,10 @@ export function RecentTracks() {
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
         {tracks.map((track, i) => (
-          <div key={i} className="group relative overflow-hidden rounded-xl bg-secondary/50 transition-all hover:shadow-lg">
+          <div key={`${track.title}-${track.timestamp}-${i}`} className="group relative overflow-hidden rounded-xl bg-secondary/50 transition-all hover:shadow-lg">
             <div className="aspect-square relative">
-              {/* ✅ SIEMPRE muestra carátula o tu logo */}
               <img
-                src={track.cover}
+                src={track.cover || "/logo-radio.png"}
                 alt={`Carátula de ${track.title}`}
                 crossOrigin="anonymous"
                 className="absolute inset-0 size-full object-cover transition-transform duration-300 group-hover:scale-105"
