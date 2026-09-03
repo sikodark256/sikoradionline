@@ -11,7 +11,7 @@ type HistoryTrack = {
 }
 
 const HISTORY_KEY = "radio-recent-tracks"
-const MAX_MOSTRAR = 5
+const MAX_MOSTRAR = 1
 const DEFAULT_COVER = "/logo-radio.png"
 
 function formatTimeAgo(ts: number): string {
