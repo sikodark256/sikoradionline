@@ -1,15 +1,11 @@
 "use client"
 import { useEffect, useState } from "react"
 
-type HistoryTrack = {
-  title: string
-  artist: string | null
-  cover: string
-  timestamp: number
+
 }
 
-const HISTORY_KEY = "radio-recent-tracks"
-const MAX_MOSTRAR = 2
+const HISTORY_KEY = ""
+const MAX_MOSTRAR = 0
 
 
 
