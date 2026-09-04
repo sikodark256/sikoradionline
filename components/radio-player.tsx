@@ -13,6 +13,11 @@ const HISTORY_KEY = "radio-recent-tracks"
 const MAX_MOSTRAR = 1
 const DEFAULT_COVER = "/logo-radio.png"
 
+// Un tema promedio dura más de 2 o 3 minutos. 
+// Definimos 90 segundos (1.5 minutos) como tiempo mínimo que debe pasar 
+// para que una canción se considere "del pasado" y pase al historial.
+const MIN_TIEMPO_HISTORIAL_MS = 90000 
+
 function formatTimeAgo(ts: number): string {
   const diff = Math.max(0, Date.now() - ts)
   const mins = Math.floor(diff / 60000)
@@ -59,18 +64,27 @@ export function RecentTracks() {
 
   const updateHistory = () => {
     const allTracks = getHistory()
+    const ahora = Date.now()
 
-    // .slice(1) descarta la primera canción (que es la que está sonando ahora en el Player)
-    // .slice(1, 1 + MAX_MOSTRAR) toma únicamente los temas reproducidos antes
-    const previousTracks = allTracks.slice(1, 1 + MAX_MOSTRAR)
+    // FILTRO ABSOLUTO:
+    // Forzamos a que la canción SOLO aparezca abajo si ya pasaron al menos 90 segundos 
+    // desde que el reproductor la registró en el sistema.
+    const pastTracks = allTracks.filter(
+      (track) => ahora - track.timestamp >= MIN_TIEMPO_HISTORIAL_MS
+    )
 
-    setTracks(previousTracks)
+    // Si el filtro borró todo porque solo hay una canción sonando ahora, 
+    // intentamos tomar la SEGUNDA canción real del almacenamiento (el verdadero tema anterior)
+    if (pastTracks.length === 0 && allTracks.length > 1) {
+      setTracks(allTracks.slice(1, 1 + MAX_MOSTRAR))
+    } else {
+      setTracks(pastTracks.slice(0, MAX_MOSTRAR))
+    }
   }
 
   useEffect(() => {
     updateHistory()
 
-    // Escucha cuando el Player actualiza el almacenamiento o cambia de canción
     window.addEventListener(
       "radio-history-updated",
       updateHistory
@@ -81,10 +95,10 @@ export function RecentTracks() {
       updateHistory
     )
 
-    // Actualiza el texto "Hace X min" cada un minuto
+    // Revisamos cada 15 segundos si la canción ya cumplió el tiempo para pasar al historial
     const timer = window.setInterval(() => {
       updateHistory()
-    }, 60000)
+    }, 15000)
 
     return () => {
       window.removeEventListener(
