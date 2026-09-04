@@ -1,24 +1,23 @@
 "use client"
 import { useEffect, useState } from "react"
 
-
+type HistoryTrack = {
+  title: string
+  artist: string | null
+  cover: string
+  timestamp: number
 }
 
-const HISTORY_KEY = ""
-const MAX_MOSTRAR = 0
+const HISTORY_KEY = "radio-recent-tracks"
+const MAX_MOSTRAR = 5
 
-
-
-function formatTimeAgo(ts: number): string {
-  const diff = Date.now() - ts
-  const mins = Math.floor(diff / 60000)
-  if (mins < 1) return "Ahora"
-  if (mins < 60) return `Hace ${mins} min`
-  const hours = Math.floor(mins / 60)
-  if (hours < 24) return `Hace ${hours} h`
-  const days = Math.floor(hours / 24)
-  return `Hace ${days} d`
-}
+const DEMO_TRACKS: HistoryTrack[] = [
+  { title: "1", artist: null, cover: "/logo-radio.png", timestamp: Date.now() - 1000 * 60 * 5 },
+  { title: "2", artist: null, cover: "/logo-radio.png", timestamp: Date.now() - 1000 * 60 * 10 },
+  { title: "3", artist: null, cover: "/logo-radio.png", timestamp: Date.now() - 1000 * 60 * 15 },
+  { title: "4", artist: null, cover: "/logo-radio.png", timestamp: Date.now() - 1000 * 60 * 20 },
+  { title: "5", artist: null, cover: "/logo-radio.png", timestamp: Date.now() - 1000 * 60 * 25 },
+]
 
 export function RecentTracks() {
   const [tracks, setTracks] = useState<HistoryTrack[]>(DEMO_TRACKS)
@@ -51,32 +50,26 @@ export function RecentTracks() {
       <div className="mb-6">
         <h2 className="text-lg font-bold sm:text-xl lg:text-2xl">Reproducido recientemente</h2>
       </div>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5">
+      
+      {/* ✅ SOLO LAS FOTOS — grilla limpia de 5 */}
+      <div className="grid grid-cols-5 gap-2 sm:gap-3">
         {tracks.map((track, idx) => (
-          <div key={`${track.title}-${idx}`} className="group overflow-hidden rounded-xl bg-secondary/50 transition-all hover:shadow-lg">
-            <div className="relative aspect-square w-full overflow-hidden bg-secondary">
-              <img
-                src={track.cover}
-                alt={`Carátula de ${track.title}`}
-                crossOrigin="anonymous"
-                className="absolute inset-0 size-full object-cover transition-transform duration-300 group-hover:scale-105"
-                loading="lazy"
-                onError={(e) => {
-                  e.currentTarget.src = "/logo-radio.png"
-                  e.currentTarget.onerror = null
-                }}
-              />
-              <div className="absolute left-1.5 top-1.5 rounded-full bg-black/60 px-2 py-0.5 font-mono text-[10px] font-bold text-white">
-                #{idx + 1}
-              </div>
-            </div>
-            <div className="p-2.5 sm:p-3">
-              <p className="line-clamp-1 text-xs font-semibold sm:text-sm">{track.title}</p>
-              {track.artist && (
-                <p className="line-clamp-1 text-[11px] text-muted-foreground sm:text-xs">{track.artist}</p>
-              )}
-              <p className="mt-1 font-mono text-[10px] text-muted-foreground/70">{formatTimeAgo(track.timestamp)}</p>
-            </div>
+          <div
+            key={`${track.title}-${idx}`}
+            className="group relative aspect-square overflow-hidden rounded-xl bg-secondary transition-all hover:shadow-lg hover:scale-105"
+            title={track.title}
+          >
+            <img
+              src={track.cover}
+              alt={track.title}
+              crossOrigin="anonymous"
+              className="absolute inset-0 size-full object-cover transition-transform duration-300"
+              loading="lazy"
+              onError={(e) => {
+                e.currentTarget.src = "/logo-radio.png"
+                e.currentTarget.onerror = null
+              }}
+            />
           </div>
         ))}
       </div>
