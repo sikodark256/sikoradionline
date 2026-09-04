@@ -12,8 +12,6 @@ type HistoryTrack = {
 const HISTORY_KEY = "radio-recent-tracks"
 const MAX_MOSTRAR = 1
 const DEFAULT_COVER = "/logo-radio.png"
-// Tiempo de espera en milisegundos para considerar que ya "sonó" y debe ir al historial (ej. 5 segundos)
-const DELAY_HISTORIAL_MS = 5000 
 
 function formatTimeAgo(ts: number): string {
   const diff = Math.max(0, Date.now() - ts)
@@ -61,46 +59,37 @@ export function RecentTracks() {
 
   const updateHistory = () => {
     const allTracks = getHistory()
-    const ahora = Date.now()
 
-    // Filtramos para que la canción no aparezca en el historial inmediatamente si acaba de registrarse
-    const tracksValidos = allTracks
-      .filter((track) => ahora - track.timestamp >= DELAY_HISTORIAL_MS)
-      .slice(0, MAX_MOSTRAR)
+    // .slice(1) descarta la primera canción (que es la que está sonando ahora en el Player)
+    // .slice(1, 1 + MAX_MOSTRAR) toma únicamente los temas reproducidos antes
+    const previousTracks = allTracks.slice(1, 1 + MAX_MOSTRAR)
 
-    setTracks(tracksValidos)
+    setTracks(previousTracks)
   }
 
   useEffect(() => {
-    // Ejecución inicial
     updateHistory()
 
-    // Manejador con un pequeño retraso para asegurar que los datos de localStorage se asentaron
-    const handleEventWithDelay = () => {
-      setTimeout(updateHistory, DELAY_HISTORIAL_MS)
-    }
-
-    // El Player dispara este evento cuando cambia la canción
+    // Escucha cuando el Player actualiza el almacenamiento o cambia de canción
     window.addEventListener(
       "radio-history-updated",
-      handleEventWithDelay
+      updateHistory
     )
 
-    // Cambios realizados desde otra pestaña
     window.addEventListener(
       "storage",
       updateHistory
     )
 
-    // Actualiza "Hace X min" y verifica si ya se cumplió el tiempo para mostrar la canción retrasada
+    // Actualiza el texto "Hace X min" cada un minuto
     const timer = window.setInterval(() => {
       updateHistory()
-    }, 10000) // Bajado a 10s para verificar cambios más seguido
+    }, 60000)
 
     return () => {
       window.removeEventListener(
         "radio-history-updated",
-        handleEventWithDelay
+        updateHistory
       )
 
       window.removeEventListener(
