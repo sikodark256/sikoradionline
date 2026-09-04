@@ -10,100 +10,107 @@ type HistoryTrack = {
 }
 
 const HISTORY_KEY = "radio-recent-tracks"
-const MAX_HISTORY = 10
+const MAX_HISTORY = 6
 const DEFAULT_COVER = "/logo-radio.png"
 
 function formatTimeAgo(ts: number): string {
   const diff = Math.max(0, Date.now() - ts)
   const mins = Math.floor(diff / 60000)
-
   if (mins < 1) return "Ahora"
   if (mins < 60) return `Hace ${mins} min`
-
   const hours = Math.floor(mins / 60)
   if (hours < 24) return `Hace ${hours} h`
-
-  const days = Math.floor(hours / 24)
-  return `Hace ${days} d`
+  return `Hace ${Math.floor(hours / 24)} d`
 }
 
 export function RecentTracks() {
   const [tracks, setTracks] = useState<HistoryTrack[]>([])
   const [, setTick] = useState(0)
 
-  const loadHistory = () => {
+  // Función maestra independiente que carga, valida y corrige las portadas en vivo
+  const processAndSyncHistory = async () => {
     if (typeof window === "undefined") return
     try {
       const raw = localStorage.getItem(HISTORY_KEY)
-      if (!raw) {
-        setTracks([])
-        return
-      }
+      if (!raw) return
 
       const parsed = JSON.parse(raw)
-      if (!Array.isArray(parsed) || parsed.length === 0) {
-        setTracks([])
-        return
-      }
+      if (!Array.isArray(parsed) || parsed.length === 0) return
 
-      // 1. Filtrar datos corruptos y ordenar estrictamente por tiempo (Más recientes primero)
-      const ordenadas = parsed
+      // Filtrar registros inválidos y ordenar (más recientes primero)
+      const rawTracks = parsed
         .filter((t) => t && typeof t.title === "string" && t.title.trim() !== "")
         .sort((a, b) => b.timestamp - a.timestamp)
+        .slice(0, MAX_HISTORY)
 
-      // 🚀 ALGORITMO DE RE-ALINEACIÓN SECUENCIAL
-      // Soluciona el error donde el Player graba el historial duplicando la carátula previa.
-      // Si la canción #1 tiene el mismo arte que la #2 pero son pistas distintas, reajusta las posiciones.
-      const corregidas = ordenadas.map((track, idx) => {
-        let portadaFinal = track.cover
+      // Guardamos el estado inicial rápido para no bloquear la UI
+      setTracks(rawTracks)
 
-        if (idx === 0 && ordenadas.length > 1) {
-          const siguienteTrack = ordenadas[1]
-          const compartePortadaAnterior = track.cover === siguienteTrack.cover && track.cover !== DEFAULT_COVER
-          const esDiferenteTema = track.title.toLowerCase().trim() !== siguienteTrack.title.toLowerCase().trim()
+      // 🚀 MÉTODO DEFENSIVO: Verificación asíncrona de portadas en background
+      // Si detectamos que la canción más reciente tiene una portada sospechosa (repetida o rota),
+      // le consultamos directamente a tu API interna de Deezer para forzar la sincronización correcta.
+      const primeraTrack = rawTracks[0]
+      const segundaTrack = rawTracks[1]
 
-          if (compartePortadaAnterior && esDiferenteTema) {
-            // Se le asigna el logo temporal mientras el player resuelve de forma asíncrona la portada real en la API
-            portadaFinal = DEFAULT_COVER
+      if (primeraTrack && segundaTrack) {
+        const esMismaPortada = primeraTrack.cover === segundaTrack.cover && primeraTrack.cover !== DEFAULT_COVER
+        const esDiferenteTema = primeraTrack.title.toLowerCase().trim() !== segundaTrack.title.toLowerCase().trim()
+
+        // Si se cumple que el reproductor le "robó" la foto a la de abajo:
+        if (esMismaPortada && esDiferenteTema) {
+          try {
+            // Consultamos directamente a tu endpoint interno de arte
+            const res = await fetch(
+              `/api/artwork?artist=${encodeURIComponent(primeraTrack.artist || "")}&title=${encodeURIComponent(primeraTrack.title)}`
+            )
+            const data = await res.json()
+
+            if (data && data.cover) {
+              // Corregimos solo la primera canción con su portada real e independiente
+              setTracks((currentTracks) => {
+                if (currentTracks.length === 0) return currentTracks
+                const nuevas = [...currentTracks]
+                nuevas[0] = { ...nuevas[0], cover: data.cover }
+                
+                // Opcional: Guardamos la corrección de vuelta en el localStorage para que persista bien
+                localStorage.setItem(HISTORY_KEY, JSON.stringify(nuevas))
+                return nuevas
+              })
+            } else {
+              // Si Deezer no encuentra nada, le ponemos el logo por defecto en vez de dejar la portada robada
+              setTracks((currentTracks) => {
+                if (currentTracks.length === 0) return currentTracks
+                const nuevas = [...currentTracks]
+                nuevas[0] = { ...nuevas[0], cover: DEFAULT_COVER }
+                return nuevas
+              })
+            }
+          } catch (e) {
+            console.error("Error en la auto-sincronización de carátulas:", e)
           }
         }
-
-        // Si por retraso extremo la portada real quedó guardada en el casillero anterior, la recuperamos
-        if (idx > 0 && (!track.cover || track.cover === DEFAULT_COVER)) {
-          const posiblePortadaRetrasada = ordenadas[idx - 1]?.cover
-          if (posiblePortadaRetrasada && posiblePortadaRetrasada !== DEFAULT_COVER) {
-            portadaFinal = posiblePortadaRetrasada
-          }
-        }
-
-        return {
-          ...track,
-          cover: portadaFinal && portadaFinal.trim() !== "" ? portadaFinal : DEFAULT_COVER
-        }
-      })
-
-      setTracks(corregidas.slice(0, MAX_HISTORY))
+      }
     } catch (error) {
-      console.error("Error procesando historial de reproducción:", error)
-      setTracks([])
+      console.error("Error leyendo el historial:", error)
     }
   }
 
   useEffect(() => {
-    loadHistory()
+    // Primera carga al montar el componente
+    processAndSyncHistory()
 
-    // Escucha eventos del reproductor y cambios entre pestañas de la PWA
-    window.addEventListener("radio-history-updated", loadHistory)
-    window.addEventListener("storage", loadHistory)
+    // Escuchar el evento nativo cuando v0 actualiza la canción
+    window.addEventListener("radio-history-updated", processAndSyncHistory)
+    window.addEventListener("storage", processAndSyncHistory)
 
-    // Intervalo de re-render para actualizar dinámicamente los contadores de tiempo
+    // Forzar re-render cada minuto para actualizar los textos de tiempo ("Hace 2 min", etc.)
     const timer = window.setInterval(() => {
       setTick((t) => t + 1)
     }, 60000)
 
     return () => {
-      window.removeEventListener("radio-history-updated", loadHistory)
-      window.removeEventListener("storage", loadHistory)
+      window.removeEventListener("radio-history-updated", processAndSyncHistory)
+      window.removeEventListener("storage", processAndSyncHistory)
       window.clearInterval(timer)
     }
   }, [])
@@ -113,55 +120,61 @@ export function RecentTracks() {
   }
 
   return (
-    <section 
-      className="w-full rounded-3xl border border-border bg-card p-6 shadow-2xl sm:p-8"
-      aria-label="Historial de reproducción"
-    >
-      <div className="mb-6 flex items-center justify-between flex-wrap gap-3">
+    <section className="w-full rounded-2xl border border-border bg-card/60 p-4 shadow-xl backdrop-blur-md sm:p-6">
+      <div className="mb-4 flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-bold sm:text-2xl">🎧 Reproducidos recientemente</h2>
-          <p className="text-xs text-muted-foreground mt-1">
-            Últimas canciones que sonaron en la estación
+          <h2 className="text-base font-bold tracking-tight text-foreground sm:text-lg">
+            📜 Historial de canciones
+          </h2>
+          <p className="text-[11px] text-muted-foreground">
+            Temas emitidos recientemente
           </p>
         </div>
-        <span className="rounded-full bg-secondary px-3 py-1 text-xs font-medium text-muted-foreground">
+        <span className="rounded-full bg-secondary/80 px-2 py-0.5 font-mono text-[10px] font-medium text-muted-foreground">
           {tracks.length} {tracks.length === 1 ? "tema" : "temas"}
         </span>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+      {/* Nuevo diseño: Lista vertical optimizada con portadas pequeñas */}
+      <div className="flex flex-col gap-2">
         {tracks.map((track, i) => (
-          <article 
+          <article
             key={`${track.title}-${track.timestamp}-${i}`}
-            className="group relative flex flex-col overflow-hidden rounded-xl bg-secondary/50 transition-all hover:bg-secondary hover:shadow-xl"
+            className="flex items-center gap-3 rounded-xl bg-secondary/30 p-2 transition-all hover:bg-secondary/60"
           >
-            <div className="aspect-square relative w-full overflow-hidden bg-muted">
+            {/* Portada compacta pequeña */}
+            <div className="relative h-11 w-11 flex-shrink-0 overflow-hidden rounded-lg bg-muted sm:h-12 sm:w-12">
               <img
-                src={track.cover || DEFAULT_COVER}
-                alt={`Carátula de ${track.title}`}
+                src={track.cover && track.cover.trim() !== "" ? track.cover : DEFAULT_COVER}
+                alt=""
                 crossOrigin="anonymous"
-                className="absolute inset-0 size-full object-cover transition-transform duration-300 group-hover:scale-105"
+                className="h-full w-full object-cover"
                 loading="lazy"
                 onError={(e) => {
                   e.currentTarget.src = DEFAULT_COVER
                   e.currentTarget.onerror = null
                 }}
               />
-              <div className="absolute top-2 left-2 bg-black/70 text-white text-[10px] font-mono font-bold px-2 py-0.5 rounded-full backdrop-blur-sm">
+              <div className="absolute bottom-0 right-0 rounded-tl-md bg-black/70 px-1 font-mono text-[8px] font-bold text-white/90">
                 #{i + 1}
               </div>
             </div>
-            
-            <div className="flex flex-1 flex-col gap-0.5 p-3">
-              <h3 className="line-clamp-1 text-sm font-semibold tracking-tight">
+
+            {/* Información de la canción alineada de forma horizontal */}
+            <div className="flex flex-1 flex-col min-w-0">
+              <h3 className="truncate text-xs font-semibold text-foreground sm:text-sm">
                 {track.title}
               </h3>
-              <p className="line-clamp-1 text-xs text-muted-foreground">
+              <p className="truncate text-[11px] text-muted-foreground">
                 {track.artist || "SIKODARK Radio"}
               </p>
-              <p className="mt-1 font-mono text-[10px] text-muted-foreground/60">
+            </div>
+
+            {/* Tiempo transcurrido a la derecha */}
+            <div className="flex-shrink-0 text-right pr-1">
+              <span className="font-mono text-[10px] text-muted-foreground/70">
                 {formatTimeAgo(track.timestamp)}
-              </p>
+              </span>
             </div>
           </article>
         ))}
