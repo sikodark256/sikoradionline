@@ -19,7 +19,6 @@ function formatTimeAgo(ts: number): string {
 
 export function RecentTracks() {
   const [tracks, setTracks] = useState<HistoryTrack[]>([])
-  // Estado para forzar la actualización de los textos de tiempo ("Hace X min") cada minuto
   const [, setTick] = useState(0)
 
   const loadHistory = () => {
@@ -40,17 +39,29 @@ export function RecentTracks() {
       // Ordenamos cronológicamente (las más recientes primero)
       const ordenadas = parsed.sort((a, b) => b.timestamp - a.timestamp)
 
-      // 🔥 ALGORITMO ANTIDESFASE AUTOMÁTICO:
-      // Corrige en tiempo de renderizado el retraso de guardado del Player
+      // 🚀 FILTRO INTELIGENTE DE HERENCIA DE PORTADAS:
+      // Si la primera canción (recién agregada) tiene la misma foto que la segunda,
+      // pero son artistas diferentes, limpiamos el error visual poniéndole el logo por defecto.
       const corregidas = ordenadas.map((track, idx) => {
-        const portadaRezagada = ordenadas[idx - 1]?.cover
-        const tienePortadaValida = portadaRezagada && 
-                                   portadaRezagada.trim() !== "" && 
-                                   portadaRezagada !== DEFAULT_COVER
+        if (idx === 0 && ordenadas.length > 1) {
+          const siguienteTrack = ordenadas[1]
+          
+          // Si comparten la misma portada pero los títulos o artistas cambian, hay desfase
+          const mismaPortada = track.cover === siguienteTrack.cover && track.cover !== DEFAULT_COVER
+          const diferenteArtista = track.artist?.toLowerCase().trim() !== siguienteTrack.artist?.toLowerCase().trim()
+          const diferenteTitulo = track.title?.toLowerCase().trim() !== siguienteTrack.title?.toLowerCase().trim()
 
+          if (mismaPortada && (diferenteArtista || diferenteTitulo)) {
+            return {
+              ...track,
+              cover: DEFAULT_COVER // Limpiamos la foto robada de la canción anterior
+            }
+          }
+        }
+        
         return {
           ...track,
-          cover: tienePortadaValida ? portadaRezagada : (track.cover || DEFAULT_COVER)
+          cover: track.cover && track.cover.trim() !== "" ? track.cover : DEFAULT_COVER
         }
       })
 
@@ -65,7 +76,6 @@ export function RecentTracks() {
     window.addEventListener("radio-history-updated", loadHistory)
     window.addEventListener("storage", loadHistory)
 
-    // Forzar el refresco visual de los minutos ("Hace 2 min", etc.)
     const timer = window.setInterval(() => {
       setTick((t) => t + 1)
     }, 60000)
@@ -77,7 +87,6 @@ export function RecentTracks() {
     }
   }, [])
 
-  // 💡 MEJORA: Si no hay historial real guardado, la sección se oculta elegantemente
   if (tracks.length === 0) {
     return null
   }
