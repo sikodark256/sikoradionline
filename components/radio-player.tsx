@@ -13,11 +13,6 @@ const HISTORY_KEY = "radio-recent-tracks"
 const MAX_MOSTRAR = 1
 const DEFAULT_COVER = "/logo-radio.png"
 
-// Un tema promedio dura más de 2 o 3 minutos. 
-// Definimos 90 segundos (1.5 minutos) como tiempo mínimo que debe pasar 
-// para que una canción se considere "del pasado" y pase al historial.
-const MIN_TIEMPO_HISTORIAL_MS = 90000 
-
 function formatTimeAgo(ts: number): string {
   const diff = Math.max(0, Date.now() - ts)
   const mins = Math.floor(diff / 60000)
@@ -38,11 +33,9 @@ function getHistory(): HistoryTrack[] {
 
   try {
     const raw = localStorage.getItem(HISTORY_KEY)
-
     if (!raw) return []
 
     const parsed = JSON.parse(raw)
-
     if (!Array.isArray(parsed)) return []
 
     return parsed
@@ -64,53 +57,41 @@ export function RecentTracks() {
 
   const updateHistory = () => {
     const allTracks = getHistory()
-    const ahora = Date.now()
 
-    // FILTRO ABSOLUTO:
-    // Forzamos a que la canción SOLO aparezca abajo si ya pasaron al menos 90 segundos 
-    // desde que el reproductor la registró en el sistema.
-    const pastTracks = allTracks.filter(
-      (track) => ahora - track.timestamp >= MIN_TIEMPO_HISTORIAL_MS
-    )
-
-    // Si el filtro borró todo porque solo hay una canción sonando ahora, 
-    // intentamos tomar la SEGUNDA canción real del almacenamiento (el verdadero tema anterior)
-    if (pastTracks.length === 0 && allTracks.length > 1) {
-      setTracks(allTracks.slice(1, 1 + MAX_MOSTRAR))
-    } else {
-      setTracks(pastTracks.slice(0, MAX_MOSTRAR))
+    // Si hay menos de 2 canciones, no hay un "historial pasado" real que mostrar aún
+    if (allTracks.length < 2) {
+      setTracks([])
+      return
     }
+
+    // CORRECCIÓN BIUNÍVOCA:
+    // El reproductor guarda en el índice 0 los datos mezclados (Título nuevo con carátula vieja).
+    // Para ver el tema anterior real que ya terminó, reconstruimos el objeto usando:
+    // - La carátula del índice 0 (que pertenece al tema que acaba de terminar).
+    // - El título y artista del índice 1 (que es el nombre real del tema terminado).
+    const temaTerminadoReal: HistoryTrack = {
+      title: allTracks[1].title,
+      artist: allTracks[1].artist,
+      cover: allTracks[0].cover, // Extraemos la portada que se quedó desfasada
+      timestamp: allTracks[1].timestamp
+    }
+
+    setTracks([temaTerminadoReal])
   }
 
   useEffect(() => {
     updateHistory()
 
-    window.addEventListener(
-      "radio-history-updated",
-      updateHistory
-    )
+    window.addEventListener("radio-history-updated", updateHistory)
+    window.addEventListener("storage", updateHistory)
 
-    window.addEventListener(
-      "storage",
-      updateHistory
-    )
-
-    // Revisamos cada 15 segundos si la canción ya cumplió el tiempo para pasar al historial
     const timer = window.setInterval(() => {
       updateHistory()
-    }, 15000)
+    }, 30000)
 
     return () => {
-      window.removeEventListener(
-        "radio-history-updated",
-        updateHistory
-      )
-
-      window.removeEventListener(
-        "storage",
-        updateHistory
-      )
-
+      window.removeEventListener("radio-history-updated", updateHistory)
+      window.removeEventListener("storage", updateHistory)
       window.clearInterval(timer)
     }
   }, [])
@@ -141,9 +122,7 @@ export function RecentTracks() {
             <article
               key={`${track.title}-${track.artist ?? ""}-${track.timestamp}`}
               className="group flex flex-col overflow-hidden rounded-xl bg-secondary/50 transition-all hover:bg-secondary hover:shadow-lg"
-              title={`${track.title}${
-                track.artist ? ` — ${track.artist}` : ""
-              }`}
+              title={`${track.title}${track.artist ? ` — ${track.artist}` : ""}`}
             >
               <div className="relative aspect-square w-full overflow-hidden bg-secondary">
                 <img
