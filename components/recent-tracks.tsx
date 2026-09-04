@@ -9,15 +9,9 @@ type HistoryTrack = {
 }
 
 const HISTORY_KEY = "radio-recent-tracks"
-const MAX_MOSTRAR = 5
+const MAX_MOSTRAR = 2
 
-const DEMO_TRACKS: HistoryTrack[] = [
-  { title: "Blinding Lights", artist: "The Weeknd", cover: "/logo-radio.png", timestamp: Date.now() - 1000 * 60 * 5 },
-  { title: "Shape of You", artist: "Ed Sheeran", cover: "/logo-radio.png", timestamp: Date.now() - 1000 * 60 * 10 },
-  { title: "Levitating", artist: "Dua Lipa", cover: "/logo-radio.png", timestamp: Date.now() - 1000 * 60 * 15 },
-  { title: "Watermelon Sugar", artist: "Harry Styles", cover: "/logo-radio.png", timestamp: Date.now() - 1000 * 60 * 20 },
-  { title: "Don't Start Now", artist: "Dua Lipa", cover: "/logo-radio.png", timestamp: Date.now() - 1000 * 60 * 25 },
-]
+
 
 function formatTimeAgo(ts: number): string {
   const diff = Date.now() - ts
