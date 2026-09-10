@@ -1,12 +1,14 @@
-// Looks up album cover art from Deezer's public search API.
-// Runs server-side to avoid browser CORS restrictions against api.deezer.com.
-
+// Busca carátulas de álbum usando la API pública de iTunes
+// Funciona en servidor sin restricciones CORS
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
 
-type DeezerTrack = {
-  album?: { cover_medium?: string; cover_big?: string; cover_xl?: string }
-  artist?: { picture_big?: string }
+type iTunesResult = {
+  artworkUrl100?: string
+  artworkUrl60?: string
+  artworkUrl512?: string
+  collectionName?: string
+  artistName?: string
 }
 
 export async function GET(request: Request) {
@@ -18,61 +20,56 @@ export async function GET(request: Request) {
     return Response.json({ cover: null })
   }
 
-  // CORRECCIÓN 1: Sintaxis correcta para filtros avanzados de Deezer (sin comillas internas)
-  // Ejemplo correcto: q=artist:Dimmu Borgir track:Hybrid Stigmata
-  const advancedQuery = [
-    artist && `artist:${artist}`, 
-    title && `track:${title}`
-  ].filter(Boolean).join(" ")
-
-  // Fallback en texto plano si la búsqueda avanzada es muy estricta (ej: remixes o caracteres raros)
-  const fallbackQuery = `${artist} ${title}`.trim()
+  // Consulta principal con artista + canción
+  const mainQuery = `${artist} ${title}`.trim()
+  // Consulta de respaldo solo con el título si la principal falla
+  const fallbackQuery = title || artist
 
   try {
-    // Intentar búsqueda avanzada
-    let cover = await fetchCoverFromDeezer(advancedQuery, request.signal)
-
-    // CORRECCIÓN 2: Si no encuentra nada, re-intenta con texto plano para evitar carátulas vacías
+    // Intento 1: búsqueda completa
+    let cover = await fetchCoverFromiTunes(mainQuery, request.signal)
+    // Intento 2: búsqueda más simple si no hay resultado
     if (!cover) {
-      cover = await fetchCoverFromDeezer(fallbackQuery, request.signal)
+      cover = await fetchCoverFromiTunes(fallbackQuery, request.signal)
     }
 
-    // CORRECCIÓN 3: Envío correcto de Headers de control de caché en Response.json
     return Response.json(
       { cover },
-      { 
+      {
         status: 200,
-        headers: { 
-          "Cache-Control": "public, max-age=300, stale-while-revalidate=60",
+        headers: {
+          "Cache-Control": "public, max-age=86400, stale-while-revalidate=86400",
           "Content-Type": "application/json"
-        } 
-      },
+        }
+      }
     )
   } catch {
     return Response.json({ cover: null }, { status: 500 })
   }
 }
 
-// Función auxiliar para reutilizar la lógica de fetch de Deezer
-async function fetchCoverFromDeezer(query: string, signal: AbortSignal): Promise<string | null> {
+// Función auxiliar que consulta iTunes
+async function fetchCoverFromiTunes(query: string, signal: AbortSignal): Promise<string | null> {
   try {
     const res = await fetch(
-      `https://api.deezer.com/search?limit=1&q=${encodeURIComponent(query)}`,
-      { cache: "no-store", signal },
+      `https://itunes.apple.com/search?media=music&limit=1&term=${encodeURIComponent(query)}`,
+      { cache: "no-store", signal }
     )
 
     if (!res.ok) return null
+    const data = await res.json()
+    const result: iTunesResult | undefined = data.results?.[0]
 
-    const data = (await res.json()) as { data?: DeezerTrack[] }
-    const track = data.data?.[0]
+    if (!result) return null
 
-    return (
-      track?.album?.cover_xl ||
-      track?.album?.cover_big ||
-      track?.album?.cover_medium ||
-      track?.artist?.picture_big ||
-      null
-    )
+    // Obtener la imagen en mayor resolución posible
+    let coverUrl = result.artworkUrl512 || result.artworkUrl100 || result.artworkUrl60
+    if (!coverUrl) return null
+
+    // ✨ Truco: pedir versión de mayor resolución reemplazando tamaño
+    coverUrl = coverUrl.replace(/\/\d+[x]\d+[.]jpg$/, "/1000x1000bb.jpg")
+
+    return coverUrl
   } catch {
     return null
   }
